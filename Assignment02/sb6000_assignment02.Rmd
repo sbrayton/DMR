@@ -7,8 +7,14 @@ output:
     toc: true
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
+```{r setup, include=FALSE, echo = TRUE}
+
+setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
+library("rmarkdown", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+install.packages('RMySQL')
+install.packages('DMwR2')
+library(DMwR2)
+
 ```
 
 
@@ -20,10 +26,13 @@ setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 An histogram of the variable
 can be obtained `r 2+2` with:
 ```{r eval=FALSE, include=FALSE}
-hist(iris$Sepal.Length)
+library(data.table)
+mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data')
+
+names(mydat) <- c("patientID", "clump_thicknes","uniformity_cell_size","uniformity_cell_shape","marginal_adhesion","single_eipthelial","bare_nuclei","bland_chromatin","normal_nucleoli","mitoses","class")
+
 ```
 
 ```{r echo=FALSE}
-data(iris)
-hist(iris$Sepal.Length)
+
 ```
