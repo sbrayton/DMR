@@ -26,8 +26,13 @@ setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 
 # Breast Cancer Dataset
 ```{r eval=TRUE, include=TRUE, echo=FALSE}
+#loading the necessary library
 library(data.table)
+
+# pulling the data straight from the online site
 mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data')
+
+# altering the column names of my dataframe to match the data dictionary that was found online
 
 names(mydat) <- c("patientID", "clump_thicknes","uniformity_cell_size","uniformity_cell_shape","marginal_adhesion","single_eipthelial","bare_nuclei","bland_chromatin","normal_nucleoli","mitoses","class")
 
