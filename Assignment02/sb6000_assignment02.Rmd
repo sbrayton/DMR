@@ -8,8 +8,8 @@ output:
   pdf_document:
     toc: yes
 ---
-
-```{r setup, include=FALSE, echo = TRUE}
+![](BClogo.jpg) 
+```{r setup, include=TRUE, echo = FALSE}
 
 setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 # library("rmarkdown", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
@@ -19,12 +19,16 @@ setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 
 ```
 
-
+# Introduction
+need to put some introductory words here describing what we will be doing
 ```{r workingDir ,include=FALSE}
 setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 ```
 
-# Breast Cancer Dataset
+# Data Gathering
+For this assignment my team and I decided to use the wisconsin breast cancer research data found on the UCI website.  
+- To begin the process, we pulled the data directly from the URL into a data frame.  
+- Then we replaced the column headers wich were not included in the data, but we were able to pull from the data dictionary made available by the UCI site.
 ```{r eval=TRUE, include=TRUE, echo=FALSE}
 #loading the necessary library
 library(data.table)
@@ -36,8 +40,9 @@ mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast
 
 names(mydat) <- c("patientID", "clump_thicknes","uniformity_cell_size","uniformity_cell_shape","marginal_adhesion","single_eipthelial","bare_nuclei","bland_chromatin","normal_nucleoli","mitoses","class")
 
+
 ```
-This dataset is the results of examinations run on `r nrow(mydat)` patients.
+
 ```{r echo=FALSE}
 
 ```
