@@ -146,7 +146,7 @@ $(document).ready(function () {
 </div>
 <div id="data-cleansing" class="section level1">
 <h1>Data Cleansing</h1>
-<p>here we had to normalize 16 rows of data that contained NA’s</p>
+<p>here we had to normalize 16 rows of data that contained NA’s by using the DMwR2 funciton “centralImputation” we were able to use the median to fill in for the NA entries within our dataset.</p>
 <table>
 <caption>Top 3 Rows with Missing Data</caption>
 <thead>
@@ -199,6 +199,66 @@ $(document).ready(function () {
 <td align="right">1</td>
 <td align="right">1</td>
 <td align="right">NA</td>
+<td align="right">2</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+</tbody>
+</table>
+<pre class="r"><code>kable( noNA.mydat[noNA.mydat$patientID %in% pIDvector, ], caption = 'Same 3 rows, with NA\'s cleansed')</code></pre>
+<table>
+<caption>Same 3 rows, with NA’s cleansed</caption>
+<thead>
+<tr class="header">
+<th align="right">patientID</th>
+<th align="right">clump_thicknes</th>
+<th align="right">uniformity_cell_size</th>
+<th align="right">uniformity_cell_shape</th>
+<th align="right">marginal_adhesion</th>
+<th align="right">single_eipthelial</th>
+<th align="right">bare_nuclei</th>
+<th align="right">bland_chromatin</th>
+<th align="right">normal_nucleoli</th>
+<th align="right">mitoses</th>
+<th align="right">class</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td align="right">1057013</td>
+<td align="right">8</td>
+<td align="right">4</td>
+<td align="right">5</td>
+<td align="right">1</td>
+<td align="right">2</td>
+<td align="right">1</td>
+<td align="right">7</td>
+<td align="right">3</td>
+<td align="right">1</td>
+<td align="right">4</td>
+</tr>
+<tr class="even">
+<td align="right">1096800</td>
+<td align="right">6</td>
+<td align="right">6</td>
+<td align="right">6</td>
+<td align="right">9</td>
+<td align="right">6</td>
+<td align="right">1</td>
+<td align="right">7</td>
+<td align="right">8</td>
+<td align="right">1</td>
+<td align="right">2</td>
+</tr>
+<tr class="odd">
+<td align="right">1183246</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">1</td>
+<td align="right">1</td>
 <td align="right">2</td>
 <td align="right">1</td>
 <td align="right">1</td>

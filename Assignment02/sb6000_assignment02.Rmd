@@ -56,10 +56,25 @@ noNA.mydat <- centralImputation(mydat)
 
 ```
 here we had to normalize `r nrow(mydat[!complete.cases(mydat),])` rows of data that contained NA's
+by using the DMwR2 funciton "centralImputation" we were able to use the median to fill in for the NA entries within our dataset.
 ```{r echo=FALSE}
+
 #here we will use knitr to produce a html friendly table to display the top 3 rows of na data examples.
 library(knitr)
 kable( head(mydat[!complete.cases(mydat),],3), caption = 'Top 3 Rows with Missing Data')
+
+#I think I can consolidate the next two steps, but basically I am getting the rows we showed of unclean data and filtering the cleansed data table with the same rows.
+t<-head(mydat[!complete.cases(mydat),],3)
+
+pIDvector <-t$patientID
+
+```
+
+```{r echo=FALSE}
+kable( noNA.mydat[noNA.mydat$patientID %in% pIDvector, ], caption = 'Same 3 rows, with NA\'s cleansed')
+```
+
+```{r}
 
 
 ```
