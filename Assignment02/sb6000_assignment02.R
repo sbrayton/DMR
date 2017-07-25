@@ -61,3 +61,20 @@ View(noNA.mydat)
 
 nrow(mydat[!complete.cases(mydat),])
 
+hist(mydat$marginal_adhesion)
+
+hist(mydat$class)
+
+cor(mydat$class,mydat$marginal_adhesion)
+
+plot(mydat$class, mydat$marginal_adhesion)
+
+# plot(lm(mydat$class~mydat$marginal_adhesion))
+
+lm(mydat$class~mydat$marginal_adhesion)
+
+abline(glm(mydat$class ~ mydat$marginal_adhesion))
+
+
+
+
