@@ -73,8 +73,18 @@ plot(mydat$class, mydat$marginal_adhesion)
 
 lm(mydat$class~mydat$marginal_adhesion)
 
-abline(glm(mydat$class ~ mydat$marginal_adhesion))
 
+  glm(mydat$class ~ mydat$marginal_adhesion, mydat$clump_thicknes)
+
+  
+  
+  binomNoNa.mydat<-noNA.mydat
+  
+  
+  model_all <- glm(as.factor(noNA.mydat$class) ~ marginal_adhesion + clump_thicknes  
+                   + uniformity_cell_size+uniformity_cell_shape+single_eipthelial+bare_nuclei+bland_chromatin+normal_nucleoli+mitoses
+                   , data=noNA.mydat, family = binomial )
+  summary(model_all)
 
 
 

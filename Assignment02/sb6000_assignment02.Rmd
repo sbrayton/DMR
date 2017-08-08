@@ -7,20 +7,24 @@ output:
     toc: yes
   pdf_document:
     toc: yes
+  word_document:
+    toc: yes
 ---
 
 ![](BClogo.jpg) 
-```{r setup, include=TRUE, echo = FALSE}
+```{r  echo = FALSE, message=FALSE}
 
 setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 # library("rmarkdown", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
 # install.packages('RMySQL')
 # install.packages('DMwR2')
- library(DMwR2)
+library(DMwR2)
 library(plyr)
 library(ggplot2)
 library(reshape2)
-
+#here we will use knitr to produce a html friendly table to display the top 3 rows of na data examples.
+library(knitr)
+library(data.table)
 ```
 
 # Introduction
@@ -32,12 +36,10 @@ setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
 # Data Gathering
 For this assignment my team and I decided to use the wisconsin breast cancer research data found on the UCI website.  
 - To begin the process, we pulled the data directly from the URL into a data frame.  
-- Then we replaced the column headers wich were not included in the data, but we were able to pull from the data dictionary made available by the UCI site.
-```{r eval=TRUE, include=TRUE, echo=FALSE}
+- Then we replaced the column headers wich were not included in the data, but we were able to pull from the data dictionary made available by the UCI free data site.
+-we have 
+```{r  echo=FALSE}
 #loading the necessary library
-
-
-library(data.table)
 
 # pulling the data straight from the online site
 mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data')
@@ -46,20 +48,64 @@ mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast
 
 names(mydat) <- c("patientID", "clump_thicknes","uniformity_cell_size","uniformity_cell_shape","marginal_adhesion","single_eipthelial","bare_nuclei","bland_chromatin","normal_nucleoli","mitoses","class")
 
+```
+
+```{r,echo=FALSE, out.width='.49\\linewidth', fig.width=3, fig.height=3,fig.show='hold',fig.align='center'}
+# {r echo=FALSE, fig.align='center'}
+
+library("stringr", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+con <- url("https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.names")
+colTitles<- readLines(con)
+close(con)
+colTitles<- colTitles[106:116]
+
+splTitles<-gsub('[0-9]+', '', colTitles)
+
+splTitles<-gsub('[^[:alnum:] ]+', '', splTitles)
+
+headers<-c()
+
+for(title in splTitles)
+{
+  splString <- as.data.frame(strsplit(title,  "\t"), row.names = NULL, optional = FALSE)
+  
+  splString <- as.character( splString[!(splString==""),])
+  
+  splString<-str_trim(splString)
+
+    splString<- lapply(splString, function(x){gsub(" ", "_",splString)})
+    splString<- lapply(splString, function(x){gsub("___________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("__________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_______", "",splString)})
+    splString<- lapply(splString, function(x){gsub("______", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_____", "",splString)})
+    splString<- lapply(splString, function(x){gsub("___", "",splString)})
+    splString<- lapply(splString, function(x){gsub("__", "",splString)})
+   
+   splString<- lapply(splString, function(x){gsub("_", " ",splString)})
+  
+
+  
+  headers<-append(headers, splString[[1]])
+
+}
+
+Data_Features<-as.data.frame(headers)
+names(Data_Features)<-c("Data Featrues")
+
+ 
+kable(Data_Features, align = 'c', caption = NULL,format = "html") 
+       
 
 ```
-Attributes for the dataset were given as follows:
-```{r echo=FALSE}
-con <- url("https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.names")
-t<- readLines(con)
-close(con)
-t<- t[106:116]
-t
-```
+
 
 #Data Cleansing
 ```{r  include=TRUE, echo=FALSE}
-
+ 
+    
 library(readr)
 # here I want to replace an ? marks found in my data with na so that I can use R functions/packages to clean them up.
 na.mydat <- parse_integer(mydat$bare_nuclei,na="?")
@@ -75,8 +121,6 @@ by using the DMwR2 funciton "centralImputation" we were able to use the median t
 
 ```{r echo=FALSE}
 
-#here we will use knitr to produce a html friendly table to display the top 3 rows of na data examples.
-library(knitr)
 kable( head(mydat[!complete.cases(mydat),],3), caption = 'Top 3 Rows with Missing Data')
 
 #I think I can consolidate the next two steps, but basically I am getting the rows we showed of unclean data and filtering the cleansed data table with the same rows.
@@ -88,6 +132,42 @@ pIDvector <-t$patientID
 
 ```{r echo=FALSE}
 kable( noNA.mydat[noNA.mydat$patientID %in% pIDvector, ], caption = 'Same 3 rows, with NA\'s cleansed')
+```
+
+```{r echo=FALSE}
+
+# Looking at only malignant datapoints
+mydat4<-subset(noNA.mydat, noNA.mydat$class == 4)
+
+# Looking at only benign datapoints
+mydat2<-subset(noNA.mydat, noNA.mydat$class == 2)
+
+
+# Means of malignant columns
+mydat4_mean<-colMeans(subset(mydat4, select = c(marginal_adhesion, clump_thicknes, uniformity_cell_size, uniformity_cell_shape, single_eipthelial, bare_nuclei, bland_chromatin, normal_nucleoli, mitoses)))
+
+# Means of benign columns
+mydat2_mean<-colMeans(subset(mydat2, select = c(marginal_adhesion, clump_thicknes, uniformity_cell_size, uniformity_cell_shape, single_eipthelial, bare_nuclei, bland_chromatin, normal_nucleoli, mitoses)))
+
+# Plot means of malignant columns vs means of benign columns
+# Merge benign and malignant mean tables
+total<- merge(mydat4_mean, mydat2_mean, by="row.names")
+names(total) <- c("Attributes","Malignant", "Begnin")
+
+# Use Melt to transform
+df1 <- melt(total,"Attributes")
+
+#df1$Attributes to factor variabls
+df1$Attributes<-as.factor(df1$Attributes)
+
+
+# GGplot
+plot <- ggplot(df1, aes(x = Attributes, y=value)) + geom_bar(aes(fill=variable),stat="identity", position ="dodge") +  theme(axis.text.x = element_text(angle=-40, hjust=.1)) +scale_fill_manual(name="Cancer Class",values = c("pink",  "darkblue")) 
+
+plot 
+
+
+
 ```
 
 here we show the relationship between Benign and Malignant cases contained in our data.
@@ -146,23 +226,18 @@ mydat2_mean<-colMeans(subset(mydat2, select = c(marginal_adhesion, clump_thickne
 # Plot means of malignant columns vs means of benign columns
 # Merge benign and malignant mean tables
 total<- merge(mydat4_mean, mydat2_mean, by="row.names")
-
+names(total) <- c("Attributes","Malignant", "Begnin")
 
 # Use Melt to transform
-df1 <- melt(total,"Row.names")
+df1 <- melt(total,"Attributes")
 
-#Row.names to factor variabls
-df1$Row.names<-as.factor(df1$Row.names)
+#df1$Attributes to factor variabls
+df1$Attributes<-as.factor(df1$Attributes)
 
-#Replace NA with 0's
-df1[is.na(df1)]<- 0
-# 
-# # GGplot
-# ggplot(df1, aes(x = Row.names, y=value)) + geom_bar(aes(fill=variable),stat="identity", position ="dodge") + theme_bw()+ theme(axis.text.x = element_text(angle=-40, hjust=.1))
 
 # GGplot
-plot <- ggplot(df1, aes(x = Row.names, y=value)) + geom_bar(aes(fill=variable),stat="identity", position ="dodge") +  theme(axis.text.x = element_text(angle=-40, hjust=.1)) +scale_fill_manual(labels = c("Benign", "Malignant"),values = c("pink",  "darkblue"))
-plot <- plot  + xlab("Attributes") + ylab("Count") 
+plot <- ggplot(df1, aes(x = Attributes, y=value)) + geom_bar(aes(fill=variable),stat="identity", position ="dodge") +  theme(axis.text.x = element_text(angle=-40, hjust=.1)) +scale_fill_manual(name="Cancer Class",values = c("pink",  "darkblue")) 
+
 plot 
 
 
@@ -173,21 +248,25 @@ plot
 
 ##### 
 ```{r  echo=FALSE}
-# library(ggplot2)
-plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$marginal_adhesion, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Clump Thickness") + theme(plot.title = element_text(family = "Trebuchet MS", color="#666666", face="bold", size=18, hjust=0))
 
-plot <- plot + geom_point(aes(size = .01))
-plot <- plot + xlab("Clump Thickness") + ylab("Marginal Adhesion") +
-   scale_fill_gradient(low="green",high="darkgreen")
+#df1$Attributes to factor variabls
+noNA.mydat$class<-as.factor(noNA.mydat$class)
+
+# library(ggplot2)
+plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$marginal_adhesion, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Clump Thickness")+  theme(plot.title = element_text(family = "Trebuchet MS", color="darkblue", face="bold", size=18, hjust=0, posi)) 
+
+plot <- plot + geom_point(aes(shape=noNA.mydat$class,size=.1,alpha= .1)) + scale_color_manual(name="Cancer Class",values=c("darkblue", "red"))+ scale_alpha(guide = 'none')
+plot <- plot + xlab("Clump Thickness") + ylab("Marginal Adhesion") 
+  
 plot
 ```
 
 
 ```{r  echo=FALSE}
 library(ggplot2)
-plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$mitoses, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Clump Thickness") + theme(plot.title = element_text(family = "Trebuchet MS", color="darkblue", face="bold", size=18, hjust=0))+scale_fill_gradient(low="green",high="darkred")
+plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$mitoses, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Mitosi") + theme(plot.title = element_text(family = "Trebuchet MS", color="darkblue", face="bold", size=18, hjust=0))+scale_fill_gradient(low="green",high="darkred")
 
-plot <- plot + geom_point(aes(size = .01))
+plot <- plot + geom_point(aes(shape=noNA.mydat$class,size=.1,alpha= .8)) + scale_color_manual(name="Cancer Class",values=c("darkblue", "red"))+ scale_alpha(guide = 'none')
 plot <- plot + xlab("Clump Thickness") + ylab("Mitosis") 
 plot
 ```
