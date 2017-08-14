@@ -1,0 +1,417 @@
+---
+title: "Group7_Assignment3"
+output: html_document
+date: "7/22/2017"
+---
+
+
+####<span style="color:green">Group 7 is:</span>
+
+* Shameka Brayton
+* Paola Igarteburu
+* Akash Nautiyal
+* Brad O'Hara
+* Tim Raiswell
+
+
+##Executive Summary of Findings with the Red Wine Data
+
+1. 'Quality' is an ordinal variable, somewhat normally distributed with a high frequency of score '5' and score '6' instances in the data.
+
+2. Some of the variables are right-skewed, so throughout the analysis we alternate between standard and            log-transformed versions of the data to test the efficacy of the normalized version. 
+
+3. Initially, we treated the dependent variable 'quality' as a continuous variable. While this approach is suboptimal because 'quality' is ordinal, it does preserve the information gain from one wine being ranked higher than another, and not just belonging to a different class. 
+	* Using the regression methods, alcohol level, sulphates content and and volatile acidity are the most useful     variables to the random forest algorithm when reducing uncertainty about the quality of the wine. A wine expert might find these results useful insofar as they provide her with a starting point for analyzing an existing wine or improving upon an existing formulation. 
+	* The log-transformed versions of the regression models contained much fewer errors than the standard versions.
+	* Interestingly, the standard (non-logged) random forest model performed well at the high end of the quality      range. With further investigation, it could be that regression treatments of the problem have specific uses like this.
+	* The random forest regressions performed better than the SVM regressions when judged by error rates. It also appears easier to produce intuitive output from the random forest function than from the SVM function, e.g. a ranked list of variable impact on information gain.
+	* Tuning the SVM parameters did little to improve error rates, suggesting that the default eps-regression settings in the SVM function work well on the red wine data. 
+
+4. Treating 'quality' prediction as a classification problem is more intuitive. However, treating 'quality' as a class variable recognizes the information $X\neq Y$ but omits the information $X<Y$. The 'ordinal' package did not improve upon the regular classification results, and so we suspect we may have used it incorrectly.
+	* The best results - judged by lowest error rates - were obtained from combining the 'quality' scores into categories of 'low'(3,4,5), 'medium'(6) and 'high'(7,8). While this blunt classification technique would be less useful for an expert, it might be useful for a business mass-producing wines that would only need to distingusih between the lowest quality and other wines.
+	* Interestingly, the classification approach found the same variables to be the strongest predictors of quality as the regression approach: alcohol content, sulphates in the wine and volatile acidity levels.
+
+
+---
+
+##Pre-Modeling Tasks
+
+####<span style="color:green">Setting Up Libraries</span>
+
+
+Below is the set of R packages and options that we used in our analysis.
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+
+
+library(DMwR)
+library(caret)
+library(e1071)
+library(performanceEstimation)
+library(psych)
+library(corrplot)
+library(randomForest)
+library(dummies)
+library(tidyverse)
+library(ordinal)
+options(scipen=999) # Presents raw numbers in regression results, not scientific notation. 
+
+```
+
+
+####<span style="color:green">Setting working directory and loading 'Red Wine' file</span>
+
+
+```{r warning = FALSE, error=FALSE, message=FALSE}
+#Working directory
+setwd("../Group7Assignment3")
+#Load file which is already in R format
+load('redWine.Rdata')
+```
+
+
+####<span style="color:green">Exploratory Analysis</span>
+
+
+We begin by examining the variables available in the dataset and their basic statistics.
+
+
+#####<span style="color:blue">Class of each variable</span>
+```{r}
+sapply(redWine, class)
+```
+
+
+All variables are numeric; the dependent variable "quality" is an integer. We check the distribution of the data for outliers and normality ahead of a regression exercise.
+
+
+#####<span style="color:blue">Distribution of each variable</span>
+```{r warning=FALSE, tidy=TRUE}
+rw <- describe(redWine, IQR=TRUE)
+rw
+
+```
+
+```{r fig.height=14, fig.width=14}
+multi.hist(redWine, bcol = "slategray1") 
+```
+
+
+As we can see, range is larger compared to the IQR (inter quartile range). Also, in most variables the mean is greater than the median. This suggests the presence of right-tail outliers in the data set (and therefore right-skew). The histograms show this more clearly, especially in the variables 'citric.acid', 'total.sulfur.dioxide' and 'alcohol'. A log transformation of the variables may help with the distribution problem.
+
+####<span style="color:blue">Distribution of 'Quality' Variable</span>
+
+```{r warning=FALSE, message=FALSE}
+attach(redWine)
+barplot((table(round(quality, 1))), col=c("slateblue4", "slategray", "slategray1", "slategray2", "slategray3", "skyblue4"))
+mtext("Quality", side=1, outer=F, line=2, cex=0.8)
+
+```
+
+Based on the bar plot, we can see that quality of wine has a high frequency of '5' and '6' scores. Class prediction of heads (high scoring wines), and tails (low-scoring wines) will be made more difficult by this distribution. It may be more suitable to group the wines into low, medium and high quality (or similar) clusters. 
+
+####<span style="color:blue">Log transformation of the variables</span>
+
+
+```{r fig.height=14, fig.width=14}
+
+logcit <- redWine$citric.acid + 1 # we add one to this variable to prevent '-inf' errors when logging zeros. 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred)
+logred$quality <- as.numeric(logred$quality)
+logred$quality <- round(logred$quality, 1)
+multi.hist(logred, bcol="pink")
+```
+
+
+The transformation significantly improves the variable distribution, and so we will work with the log data for the exercise. Logging the 'quality' variable is suitable during its treatment as a continuous variable (yielding elasticity in the interpretation of results); later, when we treat 'quality' scores as classes, we do not use a log transformed format. 
+
+####<span style="color:blue">Test for variable correlation</span>
+
+We test for linear relationships.
+
+
+```{r}
+l <- cor(logred)
+corrplot(l, method = "circle")
+
+```
+There appear to be several strong linear relationships between 'quality' and the other variables, especially 'alocohol'(+ve), 'sulphates'(+ve) and 'volatile.acidity'(-ve).
+
+#####<span style="color:blue">Spearman Rank Correlation of Variables (in case of non-normal distributions)</span>
+```{r warning=FALSE, tidy=TRUE}
+round(cor(logred[,-12], method= 'spearman'),2)
+
+```
+We also used a Spearman correlation test, as it uses ranks as opposed to actual values of variables to measure correlation. This makes it less sensitive to bias due to effect of outliers. It also does not require the assumption of normality.
+
+
+##Data Preparation
+####<span style="color:green">Train and Test Set Creation for Standard and Log Versions</span>
+We randomly split the data set in two sub-sets (70%-30%). We will use the larger sub-set to train the model and the smaller sub-set to test the models. We analzed both standard and log-transformed versions of the data. 
+
+```{r}
+Sample <- sample(1:nrow(redWine), size=0.7*nrow(redWine))
+red_tr <- redWine[Sample,]
+red_ts <- redWine[-Sample,]
+
+```
+
+
+```{r}
+logSample <- sample(1:nrow(logred), size=0.7*nrow(logred))
+logred_tr <- logred[logSample,]
+logred_ts <- logred[-logSample,]
+
+```
+
+---
+
+##Modeling Tasks
+
+###Support Vector Machine
+
+####<span style="color:green">Default Support Vector Machine (SVM) Treatment</span>
+We ran the SVM with default parameters. In this case it will default to eps-regression. Here we decided to round the results to kake the output more intuitive.
+
+####SVM using standard data
+```{r}
+set.seed(1234)
+svm_default <- svm(quality ~., red_tr)
+#Get predictions with rounding to the closest integer.
+ps1 <- round(predict(svm_default, red_ts),0) #add predictions as separate column in test frame
+
+#Results
+regr.eval(red_ts$quality, ps1)
+
+```
+This approach results in fairly high error rates. The table below is an artificial (rounded) view of the predictions, but gives some sense of where the model is failing: in the mid-range quality wines, where there is muddiness between scores '5' and '6'.
+####Table of results
+```{r}
+(cm<- table(ps1, red_ts$quality)) 
+```
+
+
+####SVM for log-transformed data
+```{r}
+set.seed(1234)
+logsvm_default <- svm(quality ~., logred_tr)
+#Get predictions with rounding to the closest integer.
+logps1 <- round(predict(logsvm_default, logred_ts),1) #add predictions as separate column in test frame
+
+#Results
+regr.eval(logred_ts$quality, logps1)
+
+```
+
+Running SVM on log-transformed data results in much lower error rates. The rounded prediction table is less applicable in this model as the log-transformed dependent variable does not align as well with the rounded predictions. That said, this approach seems to separate better the mid-range quality of wines. For example, it better predicts the score '5' wines in (log(5) = 1.6) in the test data than the standard model. 
+
+
+####Table of results 
+```{r}
+(cm<- table(logps1, logred_ts$quality)) 
+```
+We would need to be careful how we interpreted this analysis for a third-party, as it looks as if we are examining a classification problem. We aren't but we get a rough sense of how the model is performing visualizing results in this way.
+
+####<span style="color:green">Tuning SVM Parameters to Balance the Variance/Bias Tradeoff</span>
+We attempted to further tune the SVM model. We ran the SVM on a radial kernel, but tuned the kernel parameters to balance variance/bias tradeoff. 
+```{r echo=TRUE}
+
+x <- logred_tr[,-5]
+y <- logred_tr[,5]
+
+log_svm_tune <- tune(svm, quality~., data=logred_tr, train.x=x, train.y=y, ranges=list(cost=1:20, gamma=2^(-1:1)))
+summary(log_svm_tune)
+```
+
+####Post-tuning SVM log model
+The MAPE score improves, but the other scores stay fairly close to the previous model, suggesting that R's SVM function did a good job initially of selecting the appropriate model parameters in this case. 
+```{r}
+svm_tuned <- svm(quality ~., data=logred_tr, cost=10, gamma=0.5) 
+#Get predictions with rounding to the closest integer.
+ps_tune <- round(predict(svm_tuned, logred_ts),1)
+#Results
+regr.eval(logred_ts$quality, ps_tune)
+```
+
+
+##Random Forest Regression
+Staying with our original methodology of using both standard and log-transformed data for the regression experiment, we used the random forest algorithm.
+
+```{r}
+#Set Seed
+set.seed(1234) 
+#SVM model with linear
+forest <- randomForest(quality ~., red_tr, ntree=200) 
+#Get predictions
+forest_ps <- round(predict(forest, red_ts),0)
+#Results
+regr.eval(red_ts$quality, forest_ps)
+
+```
+The model improves upon the original SVM model we ran on the raw data but not the SVM model with logged variables.
+####Table of results
+```{r}
+(cm<- table(forest_ps, red_ts$quality))
+```
+
+####Random forest with log-transformed data
+We now try the same algorithm with log-transformed variables. 
+
+```{r}
+#Set Seed
+set.seed(1234) 
+#SVM model with linear
+log_forest <- randomForest(quality ~., logred_tr, ntree=200) 
+#Get predictions
+log_forest_ps <- round(predict(log_forest, logred_ts),1)
+#Results
+regr.eval(logred_ts$quality, log_forest_ps)
+```
+####Results
+The random forest regession run on the log-transformed data has the lowest error scores yet. 
+
+```{r}
+(cm<- table(log_forest_ps, logred_ts$quality))
+```
+
+The ensemble model reaches optimal error rates somewhere between 50 and 100 trees. 
+
+```{r}
+#Plot error rate
+plot(log_forest)
+
+```
+
+####Review relative variable importance
+```{r}
+m <- randomForest(quality ~., logred_tr, ntree=200, importance=T) 
+importance(m)
+```
+Alcohol level, sulphates content and and volatile acidity are the most useful variables to the random forest algorithm when reducing uncertainty about the quality of the wine. 
+```{r}
+varImpPlot(m, main="Feature Relevance Scores")
+#%IncMSE is a robust measure. It is the increase in MSE of predictions (estimated with out-of-bag-CV) as a result of variable X being permuted (having its values randomly shuffled).
+
+# IncNodePurity: at each split, we can calculate how much this split *reduces* node impurity (for regression trees, indeed, the difference between RSS before and after the split). This is summed over all splits for that variable, over all trees. i.e. how much information gain we get from the variable. 
+
+```
+---
+
+##Treating Red Wine Quality Prediction as a Classification Problem
+```{r eval=TRUE,results='hide', echo=FALSE}
+#Set Seed
+set.seed(1234)
+red_ts$quality <- as.factor(red_ts$quality)
+red_tr$quality <- as.factor(red_tr$quality)
+
+```
+
+```{r eval=TRUE,results='hide', echo=FALSE}
+#Re-prepare log data with quality as the original un-logged variable
+logcit <- redWine$citric.acid + 1 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred[,1:11])
+logred$quality <- redWine$quality
+logred$quality <- as.factor(logred$quality)
+logSample <- sample(1:nrow(logred), size=0.7*nrow(logred))
+logred_tr <- logred[logSample,]
+logred_ts <- logred[-logSample,]
+```
+
+
+####<span style="color:green">Classification SVM using standard data</span>
+This technique results in a model that is only moderately better at differentiating the mid-range quality scores than the SVM regression above. The accuracy and kappa scores show weak to mild predictive ability. 
+```{r}
+set.seed(1234)
+svm_default2 <- svm(quality ~., red_tr)
+#Get predictions with rounding to the closest integer.
+ps2 <- predict(svm_default2, red_ts) #add predictions as separate column in test frame
+
+#Results
+confusionMatrix(red_ts$quality, ps2)
+```
+
+
+####<span style="color:green">SVM standard for log-transformed data</span>
+The log-transformed data only perform slightly better than the raw data. The reasons are as follows:
+
+* First, the high frequency of mid-range quality scores makes it hard to tune a model that can distinguish between   these and the high- and low-quality wines.
+* Second, what little (if any) information we gain from treating wine quality as a class, we lose in distinguishing   the classes by degree, i.e. this approach recognizes that 3 $\neq$ 4, but not that 3 $<$ 4. We have, therefore,   lost some information.
+
+```{r}
+set.seed(1234)
+logsvm_default2 <- svm(quality ~., logred_tr)
+#Get predictions with rounding to the closest integer.
+logps2 <- predict(logsvm_default2, logred_ts) 
+
+#Results
+confusionMatrix(logred_ts$quality, logps2)
+
+```
+####<span style="color:green">Classification with random forest on standard and log-transformed data</span>
+The random forest perfoms marginally better on the standard data than its SVM counterpart.However, the random forest run on the log-transformed data is likely the best-performing model thus far with a kappa $>$ 0.5. 
+```{r}
+forest2 <- randomForest(quality ~., red_tr, ntree=200) 
+#Get predictions
+forest_ps2 <- predict(forest2, red_ts)
+#Results
+confusionMatrix(red_ts$quality, forest_ps2)
+```
+
+```{r}
+log_forest2 <- randomForest(quality ~., logred_tr, ntree=200) 
+#Get predictions
+log_forest_ps2 <- predict(log_forest2, logred_ts)
+#Results
+confusionMatrix(logred_ts$quality, log_forest_ps2)
+
+```
+
+####<span style="color:green">Attempting to improve the results by grouping the variables into Low/Med/High quality</span>
+Both accuracy and kappa are improved using this technique, though it is obviously a more 'blunt' approach to predicting wine quality as we have reduced six classes to three. 
+```{r eval=TRUE,results='hide', echo=FALSE}
+
+logcit <- redWine$citric.acid + 1 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred[,1:11])
+logred$quality <- redWine$quality
+logred$quality <- as.numeric(logred$quality)
+##
+logred$quality[logred$quality=="3"] <- "low"
+logred$quality[logred$quality=="4"] <- "low"
+logred$quality[logred$quality=="5"] <- "low"
+logred$quality[logred$quality=="6"] <- "med"
+logred$quality[logred$quality=="7"] <- "high"
+logred$quality[logred$quality=="8"] <- "high"
+logred$quality <- as.factor(logred$quality)
+
+
+##
+logSample <- sample(1:nrow(logred), size=0.7*nrow(logred))
+logred_tr <- logred[logSample,]
+logred_ts <- logred[-logSample,]
+##
+
+```
+
+```{r}
+log_forest3 <- randomForest(quality ~., logred_tr, ntree=200) 
+#Get predictions
+log_forest_ps3 <- predict(log_forest3, logred_ts)
+#Results
+confusionMatrix(logred_ts$quality, log_forest_ps3)
+
+```
+The same variables that performed best in the regression models are performing well in the classification treatment. 
+```{r}
+m <- randomForest(quality ~., logred_tr, ntree=200, importance=T) 
+importance(m)
+```
+
+```{r}
+varImpPlot(m, main="Feature Relevance Scores")
+```
+

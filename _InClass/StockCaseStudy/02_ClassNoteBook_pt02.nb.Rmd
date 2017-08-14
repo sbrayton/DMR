@@ -1,0 +1,91 @@
+---
+title: "Multivariate Adaptive Regression Splines"
+date: "August 14, 2017"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+```{r}
+source("./Tindicator.R")
+source("./tradingWF.R")
+source("./twoPolicies.R")
+```
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+#Obtaining MARS Models in R 
+- I am not sure what the mars part is doing, I need to investigate this
+- also, what is mae?
+- what exactly is the earth function doing?
+```{r}
+library(earth)
+data(Boston, package = "MASS")
+
+#here I am creating my sample set of data by taking 70% of the boston dataset
+sp <- sample(1:nrow(Boston),as.integer(0.7*nrow(Boston)))
+
+#now I will create my training set of data of the Boston data, taking it from my sp data set that I created above
+tr <- Boston[sp,]
+
+#test set of data, here my test set is coming directly from the Boston data set, taking 
+ts <-Boston[-sp,]
+
+mars <- earth(medv ~ ., tr)
+
+preds <- predict(mars,ts)
+
+(mae <- mean(abs(ts$medv - preds)))
+
+#set.seed(1234), look into this to set the numbers the same each time so that you can use the same sample to compare your model
+```
+#Obtaining MARS Models in R (cont)
+```{r}
+summary(mars)
+```
+
+```{r}
+
+# Random Forest
+
+library(randomForest)
+
+rf <- randomForest(medv~., data=tr, ntree=2000, importance=T) # 2000 iterations
+predictRF <- predict(rf, ts)
+(mae <- mean(abs(ts$medv - predictRF)))
+
+```
+
+```{r}
+
+summary(rf)
+```
+
+```{r}
+library(DMwR2)
+library(quantmod)
+data(GSPC, package = "DMwR2")
+
+## Train and test periods used in this illustration
+
+start <- 1
+len.tr<-1000 #first 1000 for training models
+len.ts<- 500 # next 500 for testing them
+
+date<- rownames(Tdata.train[start+len.tr,])
+
+market<- GSPC[paste(date,'/',sep='')][1:len.ts]
+```
+
+```{r}
+exp <- performanceEstimation(
+          PredTask(Tform, Tdata.train[1:3000,], 'SP500'), 
+          c(Workflow('timeseriesWF', wfID="slideMARS",
+                     type="slide",relearn.step=90,learner='earth'),
+            Workflow('timeseriesWF', wfID="slideRF",
+                     type="slide",relearn.step=90,learner='randomForest',learner.pars=list(ntree=1000))),
+          EstimationTask(metrics="mse",method=MonteCarlo(nReps=3,szTrain=0.5,szTest=0.25))
+)
+
+summary(exp)
+plot(exp)
+```
+

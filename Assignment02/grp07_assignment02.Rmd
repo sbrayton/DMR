@@ -1,0 +1,272 @@
+
+---
+title: "Group 07 Assignment02"
+author: 
+-   Shameka Brayton
+-   Paola Igarteburu
+-   Akash Nautiyal
+-   Brad O'Hara
+-   Tim Raiswell
+
+
+output:
+  html_document:
+    toc: yes
+df_print: paged
+date: "July 23rd, 2017"
+---
+
+
+
+![](BClogo.jpg) 
+```{r  echo = FALSE, message=FALSE}
+
+setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
+# library("rmarkdown", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+# install.packages('RMySQL')
+# install.packages('DMwR2')
+library(DMwR2)
+library(plyr)
+library(ggplot2)
+library(reshape2)
+#here we will use knitr to produce a html friendly table to display the top 3 rows of na data examples.
+library(knitr)
+library(data.table)
+```
+
+# Introduction
+>For this assignment my team and I decided to use the University of Wisconsin Hospitals breast cancer research data found on the UCI website, gathered by Dr. William H. Wolberg. 
+```{r workingDir ,include=FALSE}
+setwd("~/DropBox/NYU/02_Module/08_DMR/Assignment02")
+```
+
+
+```{r  echo=FALSE}
+#loading the necessary library
+
+# pulling the data straight from the online site
+mydat <- fread('https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.data')
+
+# altering the column names of my dataframe to match the data dictionary that was found online
+
+names(mydat) <- c("patientID", "clump_thicknes","uniformity_cell_size","uniformity_cell_shape","marginal_adhesion","single_eipthelial","bare_nuclei","bland_chromatin","normal_nucleoli","mitoses","class")
+
+```
+# The Data
+ 
+
+* To begin the process, we pulled the data directly from the UCI website into a data frame. 
+    + The dataset is comprised of `r  nrow(mydat)` images of patient breast cancer cells.
+    + Each patients record tests the cells against 9 different features resulting in a classification of either benign or malignant.
+    + To begin processing the data, we replaced column headers wich were not included in the data.
+    + We pulled the data dictionary made available by the UCI free data site, to display legiblly, this process required us to perform a bit of data scrubbing.
+    
+
+#### Data Keys 
+- There are 10 features within the dataset that describe each patient. Feature 1 remains the given identity number for the patient record, while features 2 through 10 have been used to represent the instances, with a severity range of 1-10.
+- Each instance has one of 2 possible classes: benign or malignant.
+
+```{r echo=FALSE}
+# {r echo=FALSE, fig.align='center'}
+
+library("stringr", lib.loc="/Library/Frameworks/R.framework/Versions/3.3/Resources/library")
+con <- url("https://archive.ics.uci.edu/ml/machine-learning-databases/breast-cancer-wisconsin/breast-cancer-wisconsin.names")
+colTitles<- readLines(con)
+close(con)
+colTitles<- colTitles[106:116]
+
+#here we want to remove the 
+splTitles<-gsub('1 - 10+', '', colTitles)
+
+# splTitles<-gsub('[^[:alnum:] ]+', '', splTitles)
+
+headers<-c()
+
+for(title in splTitles)
+{
+  splString <- as.data.frame(strsplit(title,  "\t"), row.names = NULL, optional = FALSE)
+  
+  splString <- as.character( splString[!(splString==""),])
+  
+  splString<-str_trim(splString)
+
+    splString<- lapply(splString, function(x){gsub(" ", "_",splString)})
+    splString<- lapply(splString, function(x){gsub("___________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("__________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("________", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_______", "",splString)})
+    splString<- lapply(splString, function(x){gsub("______", "",splString)})
+    splString<- lapply(splString, function(x){gsub("_____", "",splString)})
+    splString<- lapply(splString, function(x){gsub("___", "",splString)})
+    splString<- lapply(splString, function(x){gsub("__", "",splString)})
+   
+   splString<- lapply(splString, function(x){gsub("_", " ",splString)})
+  
+
+  
+  headers<-append(headers, splString[[1]])
+
+}
+
+Data_Features<-as.data.frame(headers)
+names(Data_Features)<-c("Data Featrues")
+
+
+ 
+kable(Data_Features, caption = NULL,format = "html")
+
+       
+
+```
+
+
+#### Data Cleansing
+```{r  include=TRUE, echo=FALSE}
+ 
+    
+library(readr)
+# here I want to replace an ? marks found in my data with na so that I can use R functions/packages to clean them up.
+na.mydat <- parse_integer(mydat$bare_nuclei,na="?")
+
+#Once I have made the ? na I want to add the vector back to my data frame
+mydat$bare_nuclei<-na.mydat
+noNA.mydat <- centralImputation(mydat) 
+```
+
+- The data received from UCI contained "?" to represent `r nrow(mydat[!complete.cases(mydat),])`  missing instances of data. 
+- With the "parse_integer" function we were able to replace the ? with Na's. 
+- Finally, utillizing DMwR2 funciton "centralImputation" we assigned the median value of the feature to replace Na's within the dataset.
+
+
+```{r echo=FALSE}
+
+kable( head(mydat[!complete.cases(mydat),],3), caption = 'Top 3 Rows with Missing Data')
+
+#I think I can consolidate the next two steps, but basically I am getting the rows we showed of unclean data and filtering the cleansed data table with the same rows.
+t<-head(mydat[!complete.cases(mydat),],3)
+
+pIDvector <-t$patientID
+
+```
+
+```{r echo=FALSE}
+kable( noNA.mydat[noNA.mydat$patientID %in% pIDvector, ], caption = 'Same 3 rows, with NA\'s cleansed')
+```
+
+#Correlations
+- This graph is a great representation of the average values for class of each of the criteria in the study. While one criterion isn't enough to properly predict class, one can get a better idea for class if a few criteria skew higher or lower. This graph gives a good idea of how the average data point lies in each class.
+
+```{r echo=FALSE}
+
+# Looking at only malignant datapoints
+mydat4<-subset(noNA.mydat, noNA.mydat$class == 4)
+
+# Looking at only benign datapoints
+mydat2<-subset(noNA.mydat, noNA.mydat$class == 2)
+
+
+# Means of malignant columns
+mydat4_mean<-colMeans(subset(mydat4, select = c(marginal_adhesion, clump_thicknes, uniformity_cell_size, uniformity_cell_shape, single_eipthelial, bare_nuclei, bland_chromatin, normal_nucleoli, mitoses)))
+
+# Means of benign columns
+mydat2_mean<-colMeans(subset(mydat2, select = c(marginal_adhesion, clump_thicknes, uniformity_cell_size, uniformity_cell_shape, single_eipthelial, bare_nuclei, bland_chromatin, normal_nucleoli, mitoses)))
+
+# Plot means of malignant columns vs means of benign columns
+# Merge benign and malignant mean tables
+total<- merge(mydat4_mean, mydat2_mean, by="row.names")
+names(total) <- c("Attributes","Malignant", "Benign")
+
+# Use Melt to transform
+df1 <- melt(total,"Attributes")
+
+#df1$Attributes to factor variabls
+df1$Attributes<-as.factor(df1$Attributes)
+
+
+# GGplot
+plot <- ggplot(df1, aes(x = Attributes, y=value)) + ggtitle("Benign vs Malignant")+ geom_bar(aes(fill=variable),stat="identity", position ="dodge") +  theme(axis.text.x = element_text(angle=-40, hjust=.1)) +scale_fill_manual(name="Cancer Class",values = c("darkblue","pink")) 
+
+plot
+
+
+
+```
+
+
+```{r echo=FALSE}
+B<-table(mydat$class)
+names(B) <- c("Benign","Malignant")
+barplot(as.matrix(B), main='Benign vs. Malignant Cases', ylab = 'Count of Cases', beside = TRUE,col = c("Pink","darkblue"), legend = rownames(B), ylim = c(0, round_any(nrow(mydat)+50,10)))
+        
+
+```
+
+#Modeling
+- From the graph above, we can very quickly see that the ratio of benign:malignant cases was approximately 2:1. Keeping this in mind will help provide some context for the remaining graphs.
+
+```{r  echo=FALSE}
+# Logistic Regression on all variables on class to view significance of each variable
+
+  model_all <- glm(as.factor(noNA.mydat$class) ~ marginal_adhesion + clump_thicknes  
+                   + uniformity_cell_size+uniformity_cell_shape+single_eipthelial+bare_nuclei+bland_chromatin+normal_nucleoli+mitoses
+                   , data=noNA.mydat, family = binomial )
+  summary(model_all)
+
+```
+- Running the logit model above shows 4 variables that are significant in predicting the class (benign or malignant). These variables are marginal adhesion, clump thickness, bare nuclei, and bland chromatin. The resulting AIC of this model is 133.09.
+
+```{r  echo=FALSE}
+#Drill down based on significance
+model_sig<-glm(as.factor(noNA.mydat$class) ~ marginal_adhesion+clump_thicknes+uniformity_cell_size+uniformity_cell_shape+bare_nuclei+bland_chromatin+normal_nucleoli, data=noNA.mydat, family = binomial )
+# summary(model_sig)
+```
+
+```{r  echo=FALSE}
+# Logistic Regression of Marginal Adhesion on Class
+model_ma<-glm(as.factor(class)~marginal_adhesion, data=noNA.mydat,family = binomial )
+
+
+xmarginal_adhesion <- seq(0, 10, 0.01)
+
+ymarginal_adhesion <-  predict(model_ma, list(marginal_adhesion = xmarginal_adhesion),type="response")
+
+plot(noNA.mydat$marginal_adhesion, noNA.mydat$class, pch = 10, xlab = "Marginal Adhesion", ylab = "Class", main="Marginal Adhesion Based on Class")
+lines(xmarginal_adhesion, ymarginal_adhesion)
+```
+
+- This graph quickly shows the full range of marginal adhesion values plotted against class. Even though marginal adhesion is a significant contributor in predicting class, there is a full range of data points for each class. Basically, the max or min marginal adhesion won't absolutely result in a benign or malignant case.
+
+```{r  echo=FALSE}
+
+noNA.mydat$class[noNA.mydat$class == 2] <- "Benign"
+noNA.mydat$class[noNA.mydat$class == '4'] <- "Malignant"
+#df1$Attributes to factor variabls
+noNA.mydat$class<-as.factor(noNA.mydat$class)
+#
+
+
+# library(ggplot2)
+plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$marginal_adhesion, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Clump Thickness")+  theme(plot.title = element_text(family = "Trebuchet MS", color="darkblue", face="bold", size=18, hjust=0, posi))
+
+plot <- plot + geom_point(aes(shape=noNA.mydat$class,size=.1,alpha= .1)) + scale_color_manual(name="Cancer Class",values=c("darkblue", "red"))+ scale_alpha(guide = 'none')
+plot <- plot + xlab("Clump Thickness") + ylab("Marginal Adhesion")
+
+plot
+```
+
+- The next two graphs both show visulalizations of how two of the more significant criteria can both be used to predict class. The first graph below shows that while high results in both are more likely to predict a malignant case (and vice versa), it also shows again that looking at these two criteria won't absolutely predict class. There were multiple data points scoring over 5.0 that still resulted in benign cases. This visualization also shows which intervals will predict the highest percentage of benign and malignant cases. There was a pretty wide spread of data points, however, there weren't many high marginal adhesion/low clump thickness data points.
+
+
+```{r  echo=FALSE}
+library(ggplot2)
+plot <- ggplot(data=noNA.mydat, aes(x=noNA.mydat$clump_thicknes, y=noNA.mydat$mitoses, col=noNA.mydat$class)) + ggtitle("Marginal adhesions vs Mitosi") + theme(plot.title = element_text(family = "Trebuchet MS", color="darkblue", face="bold", size=18, hjust=0))+scale_fill_gradient(low="green",high="darkred")
+
+plot <- plot + geom_point(aes(shape=noNA.mydat$class,size=.1,alpha= .8)) + scale_color_manual(name="Cancer Class",values=c("darkblue", "red"))+ scale_alpha(guide = 'none')
+plot <- plot + xlab("Clump Thickness") + ylab("Mitosis") 
+plot
+
+
+```
+
+- Similar to above, this graph shows the different intervals of data points that result in malignant/benign cases. However, these two criteria have different results. A clump thickness of less than 2.5 extremely rarely resulted in a malignant case, while a clump thickness of over 7.5 corresponded to a malignant case a far majority of the time. Conversely, a mitosis score of less than 2.5 yields plenty of both cases. To go along with this, there were benign cases with mitosis scores of as high as 7.0-7.5. There were also not as many data points with high mitosis/low clump thickness scores. The amount of data points for different intervals can provide insight as well. Further analysis of why different variables don't occur at certain scores can help the researchers learn more of how they are related.

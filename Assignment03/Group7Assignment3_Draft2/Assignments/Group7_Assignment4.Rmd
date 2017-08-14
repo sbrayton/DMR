@@ -1,0 +1,254 @@
+---
+title: "Group7_Assignment4"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+####<span style="color:green">Group 7 is:</span>
+
+* Shameka Brayton
+* Paola Igarteburu
+* Akash Nautiyal
+* Brad O'Hara
+* Tim Raiswell
+
+```{r eval=TRUE, message=FALSE, warning=FALSE}
+
+
+library(DMwR)
+library(caret)
+library(e1071)
+library(performanceEstimation)
+library(psych)
+library(corrplot)
+library(randomForest)
+library(dummies)
+library(tidyverse)
+library(ordinal)
+options(scipen=999) # Presents raw numbers in regression results, not scientific notation. 
+```
+
+
+##Assignment 4: Recommending a Model
+
+##Model Recommendation & Executive Summary 
+
+We recommend the random forest classification model used on the grouped variables: low, medium, high. This is the last model evaluated in this markdown file. We made this choice assuming that the consumer of the model output would prefer improved predictive accuracy in three classes over the precision of using six classes. There are scenarios where this may not be the case, e.g. experts looking to distinguish classes in more detail for a ranking system. From our analysis in Assignment 3, we also found this model has improved kappa scores over the standard classification models. The kappa score strengthens our argument because it factors in the possibility that matching occurred by chance.   
+
+1. The analysis maintains the same method from Assignment 3: we solve the problem using both regression and classification approaches. And we use two versions of the data: standard and log-transformed. For the classification problems we maintain a non-transformed dependent variable, save for the last test where we group 'quality' into three classes: low, medium and high.
+
+2. We use root mean squared error (RMSE) to assess the regression models.
+  * The random forest models outperfom the SVM models.
+  * The log-transformed random forest performed the best with an RMSE < 0.12
+
+3. We use the error rate (ERR) to assess the classification models.
+  *The random forest models outperfom the SVM models
+  *The best-performing models used log-transformed data on the grouped quality variable. The SVM and random forest models performed almost identically on the dataset, with very marginal improvements observed in the random forest model.  
+
+
+####<span style="color:green">Setting working directory and loading 'Red Wine' file</span>
+
+
+```{r warning = FALSE, error=FALSE, message=FALSE}
+#Working directory
+setwd("../Group7Assignment3")
+#Load file which is already in R format
+load('redWine.Rdata')
+
+```
+
+
+```{r eval=TRUE,results='hide', echo=FALSE}
+
+logcit <- redWine$citric.acid + 1 # we add one to this variable to prevent errors when logging zeros. 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred)
+logred$quality <- as.numeric(logred$quality)
+logred$quality <- round(logred$quality, 1)
+```
+
+####<span style="color:green">Evaluating the Regression Models</span>
+
+We run the model tests using RMSE on both the original and log-transformed datasets. In both cases, the random forest ensemble approach outperforms the SVM regression. The log-transformed data improves regression model performance.
+
+```{r}
+red <- performanceEstimation(
+PredTask(quality ~ .,redWine),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="rmse",method=CV(nReps=2, nFolds=5))
+)
+summary(red)
+
+```
+
+
+```{r}
+plot(red)
+```
+
+```{r}
+rankWorkflows(red)
+```
+
+#####Log version
+The log-transformed data improves regression model performance.
+```{r}
+logred_perf <- performanceEstimation(
+PredTask(quality ~ .,logred),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="rmse",method=CV(nReps=2, nFolds=5))
+)
+summary(logred_perf)
+
+```
+
+
+```{r}
+plot(logred_perf)
+
+```
+
+```{r}
+rankWorkflows(logred_perf)
+
+```
+
+
+####<span style="color:green">Evaluating Classification Models</span>
+
+#####Standard version
+The random forest model is a marginally better predictor of red wine class than the SVM approach using the non-transformed data. 
+
+```{r}
+redWine$quality <- as.factor(redWine$quality)
+red <- performanceEstimation(
+PredTask(quality ~ .,redWine),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="err",method=CV(nReps=2, nFolds=5))
+)
+summary(red)
+
+```
+
+
+```{r}
+plot(red)
+```
+
+
+```{r}
+rankWorkflows(red)
+```
+
+#####Log version
+Interestingly, the log-transformed data performs worse with the classification models. 
+```{r eval=TRUE,results='hide', echo=FALSE}
+#Re-prepare log data with quality as the original un-logged variable
+logcit <- redWine$citric.acid + 1 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred[,1:11])
+logred$quality <- redWine$quality
+logred$quality <- as.factor(logred$quality)
+
+```
+
+
+
+```{r}
+logred_perf <- performanceEstimation(
+PredTask(quality ~ .,logred),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="err",method=CV(nReps=2, nFolds=5))
+)
+summary(logred_perf)
+```
+
+```{r}
+plot(logred_perf)
+```
+
+
+
+```{r}
+rankWorkflows(logred_perf)
+```
+
+####<span style="color:green">Evaluating Classification Models</span>
+
+In the example of the grouped data, the model using the log-transformed version of the data performs better than the standard version. 
+
+#####Standard version
+
+```{r eval=TRUE,results='hide', echo=FALSE}
+redWine$quality <- as.numeric(redWine$quality)
+redWine$quality[redWine$quality=="3"] <- "low"
+redWine$quality[redWine$quality=="4"] <- "low"
+redWine$quality[redWine$quality=="5"] <- "low"
+redWine$quality[redWine$quality=="6"] <- "med"
+redWine$quality[redWine$quality=="7"] <- "high"
+redWine$quality[redWine$quality=="8"] <- "high"
+
+```
+
+
+```{r}
+redWine$quality <- as.factor(redWine$quality)
+red <- performanceEstimation(
+PredTask(quality ~ .,redWine),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="err",method=CV(nReps=2, nFolds=5))
+)
+summary(red)
+
+```
+
+#####Log version
+
+```{r eval=TRUE,results='hide', echo=FALSE}
+logcit <- redWine$citric.acid + 1 
+logred <- redWine
+logred$citric.acid <- logcit
+logred <- log(logred[,1:11])
+logred$quality <- redWine$quality
+logred$quality <- as.numeric(logred$quality)
+##
+logred$quality[logred$quality=="3"] <- "low"
+logred$quality[logred$quality=="4"] <- "low"
+logred$quality[logred$quality=="5"] <- "low"
+logred$quality[logred$quality=="6"] <- "med"
+logred$quality[logred$quality=="7"] <- "high"
+logred$quality[logred$quality=="8"] <- "high"
+logred$quality <- as.factor(logred$quality)
+
+```
+
+
+
+```{r}
+
+logred_perf <- performanceEstimation(
+PredTask(quality ~ .,logred),
+workflowVariants(learner=c("svm", "randomForest")),
+EstimationTask(metrics="err",method=CV(nReps=2, nFolds=5))
+)
+summary(logred_perf)
+
+```
+
+
+
+
+```{r}
+plot(logred_perf)
+```
+
+```{r}
+rankWorkflows(logred_perf)
+
+```
+

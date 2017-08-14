@@ -1,0 +1,201 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+```{r}
+source("./Tindicator.R")
+source("./tradingWF.R")
+source("./twoPolicies.R")
+```
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+setwd('/Users/shamekabrayton/Dropbox/NYU/02_Module/08_DMR/_InClass/StockCaseStudy')
+library(xts) # extra package to install
+
+data(GSPC, package="DMwR2")
+first(GSPC)
+
+last(GSPC)
+
+
+dim(GSPC)
+
+```
+
+```{r}
+library(quantmod) # extra package you need to install 
+getSymbols('MSFT',from='2010-01-01')
+## If the above fails (Yahoo recent restrictions) try:
+## getSymbols.google('MSFT',from='2010-01-01',env=.GlobalEnv) 
+getFX("USD/EUR")
+getMetals("Gold")
+getFinancials("AAPL") # Use viewFin() to view the downloaded financial data
+
+
+```
+
+```{r}
+viewFin(AAPL.f)
+plot(MSFT$MSFT.Close)
+```
+```{r}
+library(quantmod)
+data(GSPC,package="DMwR2")
+candleChart(last(GSPC,'3 months'),theme='white',TA=NULL) 
+avgPrice <- function(p) apply(HLC(p),1,mean)
+addAvgPrice <- newTA(FUN=avgPrice,col=1,legend='AvgPrice') 
+addT.ind <- newTA(FUN=T.ind,col='red',legend='tgtRet') 
+addAvgPrice(on=1)
+addT.ind()
+```
+
+
+```{r}
+library(TTR)
+myATR <- function(x) ATR(HLC(x))[,'atr']
+mySMI <- function(x) SMI(HLC(x))[, "SMI"]
+myADX <- function(x) ADX(HLC(x))[,'ADX']
+myAroon<- function(x) aroon(cbind(Hi(x),Lo(x)))$oscillator
+myEMV <- function(x) EMV(cbind(Hi(x),Lo(x)),Vo(x))[,2]
+myMACD<- function(x) MACD(Cl(x))[,2]
+myMFI <- function(x) MFI(HLC(x), Vo(x))
+mySAR <- function(x) SAR(cbind(Hi(x),Cl(x))) [,1]
+myVolat <- function(x) volatility(OHLC(x),calc="garman")[,1]
+```
+
+```{r}
+data.model <- specifyModel(T.ind(GSPC) ~ myATR(GSPC) + mySMI(GSPC) + 
+                             myADX(GSPC) + myAroon(GSPC) + myEMV(GSPC) + 
+                             myVolat(GSPC) + myMACD(GSPC) + myMFI(GSPC) + mySAR(GSPC) +
+                           runMean(Cl(GSPC)) + runSD(Cl(GSPC)))
+
+Tdata.train <- as.data.frame(modelData(data.model, 
+                                       data.window=c('1970-01-02','2005-12-30')))
+                                       
+Tdata.eval <- na.omit(as.data.frame(modelData(
+                                      data.model, data.window=c('2006-01-01','2016-01-25'))))
+                                              
+Tform <- as.formula('T.ind.GSPC ~ .') # the formula to be used in model
+
+
+```
+
+```{r}
+head(Tdata.train)
+```
+
+#Obtaining MARS Models in R 
+- I am not sure what the mars part is doing, I need to investigate this
+- also, what is mae?
+- what exactly is the earth function doing?
+```{r}
+library(earth)
+data(Boston, package = "MASS")
+
+#here I am creating my sample set of data by taking 70% of the boston dataset
+sp <- sample(1:nrow(Boston),as.integer(0.7*nrow(Boston)))
+
+#now I will create my training set of data of the Boston data, taking it from my sp data set that I created above
+tr <- Boston[sp,]
+
+#test set of data, here my test set is coming directly from the Boston data set, taking 
+ts <-Boston[-sp,]
+
+mars <- earth(medv ~ ., tr)
+
+preds <- predict(mars,ts)
+
+(mae <- mean(abs(ts$medv - preds)))
+
+#set.seed(1234), look into this to set the numbers the same each time so that you can use the same sample to compare your model
+```
+#Obtaining MARS Models in R (cont)
+```{r}
+summary(mars)
+```
+```{r}
+
+# Random Forest
+
+library(randomForest)
+
+rf <- randomForest(medv~., data=tr, ntree=2000, importance=T) # 2000 iterations
+predictRF <- predict(rf, ts)
+(mae <- mean(abs(ts$medv - predictRF)))
+
+```
+
+```{r}
+
+summary(rf)
+```
+
+```{r}
+library(DMwR2)
+library(quantmod)
+data(GSPC, package = "DMwR2")
+
+## Train and test periods used in this illustration
+
+start <- 1
+len.tr<-1000 #first 1000 for training models
+len.ts<- 500 # next 500 for testing them
+
+date<- rownames(Tdata.train[start+len.tr,])
+
+market<- GSPC[paste(date,'/',sep='')][1:len.ts]
+```
+
+```{r}
+# 
+# exp <- performanceEstimation(
+#           PredTask(Tform, Tdata.train[1:3000,], 'SP500'), 
+#           c(Workflow('timeseriesWF', wfID="slideMARS",
+#                      type="slide",relearn.step=90,learner='earth'),
+#             Workflow('timeseriesWF', wfID="slideRF",
+#                      type="slide",relearn.step=90,learner='randomForest',learner.pars=list(ntree=1000))),
+#           EstimationTask(metrics="mse",method=MonteCarlo(nReps=3,szTrain=0.5,szTest=0.25))
+# )
+# 
+# summary(exp)
+# plot(exp)
+```
+
+```{r}
+mc.res2 <-subset(mc.res, 
+                 metrics=c("PercProf","Ret","MaxDD"), partial=FALSE)
+
+
+```
+
+```{r}
+topPerformers(mc.res2, maxs = c(TRUE,TRUE,FALSE))
+```
+
+```{r}
+plot(subset(mc.res2,metrics="Ret"))
+```
+
+```{r}
+getWorkflow("tradingWF.v5",mc.res)
+```
+
+```{r}
+summary(subset(mc.res2,workflows="tradingWF.v5"))
+```
+
+```{r}
+t <- tradingWF(Tform,Tdata.train[(nrow(Tdata.train)-2540+1):nrow(Tdata.train),],
+               Tdata.eval,pred.target="indicator",
+               learner="svm",learner.pars=list(cost=1,gamma=0.01), quotes="GSPC",
+               b.t=0.01,s.t=-0.05,
+               policy="policy.2", 
+               policy.pars=list(bet=0.2,exp.prof=0.05,max.loss=0.05))
+
+tradingEval(t$trueSigs,t$predSigs,t$tradeRec)
+```
+

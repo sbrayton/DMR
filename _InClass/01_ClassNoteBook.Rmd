@@ -1,0 +1,267 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Cmd+Shift+Enter*. 
+
+```{r}
+setwd("/Users/shamekabrayton/Dropbox/NYU/02_Module/08_DMR/_InClass")
+
+
+```
+
+```{r}
+library(dplyr)
+data(sales,package="DMwR2") # load the data without loading the pack.
+sales
+
+
+```
+
+```{r}
+summary(sales)
+```
+
+```{r}
+nrow(filter(sales,is.na(Quant), is.na(Val)))
+
+table(sales$Insp)/nrow(sales)*100
+```
+
+```{r}
+sales <- mutate(sales, Uprice = Val / Quant)
+summary(sales$Uprice)
+```
+```{r}
+library(ggplot2); 
+ids <- group_by(sales, ID)
+
+ggplot(summarize(ids, nTrans=n()),aes(x=ID,y=nTrans)) + geom_bar(stat="identity") +
+theme(axis.text.x = element_blank(),axis.ticks.x=element_blank()) +
+xlab("Salesmen") + ylab("Nr. of Transactions") +
+ggtitle("Nr. of Transactions per Salesman")
+
+```
+
+```{r}
+prods <- group_by(sales, Prod)
+
+ggplot(summarize(prods, nTrans=n()),aes(x=Prod,y=nTrans)) + geom_bar(stat="identity") +
+theme(axis.text.x = element_blank(),axis.ticks.x=element_blank()) +
+xlab("Product") + ylab("Nr. of Transactions") +ggtitle("Nr. of Transactions per Product")
+```
+
+```{r}
+nrow(summarise(prods,nTrans=n()) %>% filter(nTrans < 20))
+```
+
+```{r}
+mpProds <- summarize(prods, medianPrice=median(Uprice,na.rm=TRUE))
+bind_cols(mpProds %>% arrange(medianPrice) %>% slice(1:5),
+mpProds %>% arrange(desc(medianPrice)) %>% slice(1:5))
+```
+
+```{r}
+library(ggplot2)
+library(forcats)
+ggplot(filter(sales,
+Prod %in% c("p3689","p560")),
+aes(x=fct_drop(Prod), y=Uprice)) +
+geom_boxplot() +
+scale_y_log10() +
+xlab("") + ylab("log10(UnitPrice)")
+```
+
+```{r}
+nrow(summarise(ids,nTrans=n()) %>% filter(nTrans < 10))
+```
+
+```{r}
+tvIDs <- summarize(ids,totalVal=sum(Val,na.rm=TRUE))
+bind_cols(tvIDs %>% arrange(totalVal) %>% slice(1:5),
+tvIDs %>% arrange(desc(totalVal)) %>% slice(1:5))
+```
+
+```{r}
+arrange(tvIDs,desc(totalVal)) %>% slice(1:100) %>%
+summarize(t100=sum(totalVal)) /
+(summarize(tvIDs,sum(totalVal))) * 100
+
+```
+
+```{r}
+arrange(tvIDs,totalVal) %>% slice(1:2000) %>%
+summarize(b2000=sum(totalVal)) /
+(summarize(tvIDs,sum(totalVal))) * 100
+```
+
+```{r}
+nouts <- function(x) length(boxplot.stats(x)$out)
+noutsProds <- summarise(prods,nOut=nouts(Uprice))
+arrange(noutsProds,desc(nOut))
+```
+
+```{r}
+summarize(noutsProds,totalOuts=sum(nOut))
+```
+
+```{r}
+summarize(noutsProds,totalOuts=sum(nOut))/nrow(sales)*100
+```
+
+```{r}
+nas <- filter(sales,is.na(Quant), is.na(Val)) %>% select(ID,Prod)
+```
+
+```{r}
+prop.naQandV <- function(q,v)
+100*sum(is.na(q) & is.na(v))/length(q)
+summarise(ids,nProbs=prop.naQandV(Quant,Val)) %>%
+arrange(desc(nProbs))
+```
+
+```{r}
+summarise(prods,nProbs=prop.naQandV(Quant,Val)) %>%
+arrange(desc(nProbs))
+```
+
+```{r}
+sales <- filter(sales,!(is.na(Quant) & is.na(Val)))
+```
+
+```{r}
+prop.nas <- function(x) 100*sum(is.na(x))/length(x)
+propNAsQp <- summarise(prods,Proportion=prop.nas(Quant))
+arrange(propNAsQp,desc(Proportion))
+```
+
+```{r}
+nlevels(sales$Prod)
+```
+
+```{r}
+sales <- droplevels(filter(sales,!(Prod %in% c("p2442", "p2443"))))
+nlevels(sales$Prod)
+```
+
+```{r}
+summarise(ids,Proportion=prop.nas(Quant)) %>%
+arrange(desc(Proportion))
+```
+
+```{r}
+summarise(prods,Proportion=prop.nas(Val)) %>%
+arrange(desc(Proportion))
+```
+
+```{r}
+summarise(ids,Proportion=prop.nas(Val)) %>%
+arrange(desc(Proportion))
+```
+
+```{r}
+tPrice <- filter(sales, Insp != "fraud") %>%
+group_by(Prod) %>%
+summarise(medianPrice = median(Uprice,na.rm=TRUE))
+```
+
+```{r}
+noQuantMedPrices <- filter(sales, is.na(sales$Quant)) %>% inner_join(tPrice) %>% select(medianPrice)
+
+noValMedPrices <- filter(sales, is.na(Val)) %>%
+inner_join(tPrice) %>% select(medianPrice)
+
+noQuant <- which(is.na(sales$Quant))
+noVal <- which(is.na(sales$Val))
+sales[noQuant,'Quant'] <- ceiling(sales[noQuant,'Val']/noQuantMedPrices)
+sales[noVal,'Val'] <- sales[noVal,'Quant'] * noValMedPrices
+sales$Uprice <- sales$Val/sales$Quant
+```
+```{r}
+#this will take the changes to the data that I made as a new file. and it would overwrite the professors file.
+#for this it would probably be better if I renamed the data file mysales. inorder to keep the integrity of the original file. in the next step, I can then compare the two data files and see the changes that occured from the original to the new one.
+save(sales,file="mySalesObj.Rdata")
+```
+
+```{r}
+#this will keep take the two objects, or data files and compares them to confirm that they are the same.
+# identical(mysales, sales)
+
+
+globalStats <-as.matrix(filter(sales, sales$Insp != 'fraud') %>% 
+                          group_by(Prod) %>% 
+                          summarise(median=median(Uprice),iqr=IQR(Uprice)) %>%
+                                      select(median, iqr))
+
+#where the interquartile range is 0, the first and third quarter
+ rownames(globalStats) <-levels(sales$Prod) 
+ globalStats[which(globalStats[,'iqr']==0), 'iqr'] <- 
+   globalStats[which(globalStats[,'iqr']==0), 'median'] 
+ head(globalStats,3)
+                        
+
+
+
+```
+
+- we could treat this as an unspervised. since we do not have much data on the target variable. fraud or not fraud.
+```{r}
+
+ bp.res <- performanceEstimation (
+   PreTask(Insp ~ .,sales),
+   Workflow("BPrule.wf"),
+   EstimationTask(metrics=c("Precision","Recall","avgNDTP"),
+                  method=Holdout(nReps=3,hldSz=0.3, strat=TRUE),
+                  evaluator="evalOutlierRanking",
+                  evaluator="evaluatorOutlierRanking",
+                  evaluator.pars=list(Threshold=o.1,
+                                      statsProds=globalStats))
+ )
+  
+
+```
+
+- If we go supervised. we could throw away the unkown, even though it is throwing away 96% of the data.
+
+- semi-supervised: ideal for this data set, because we would use all of the data set.
+- 1. what is the first data mining tasks
+- 2. what methods should I use
+- 3. then we evaluate our output
+-----inspection ranking?
+- we are not going to measure accuracy for this problem, we are going to measure precision... number of frauds, against what my model said was a fraud.
+
+- Recall is the key issue on this application - we want to capture as many frauds as possible with our limited inspection resources
+- we need to balance.-this function will compute how far I am away from shopping
+```{r}
+
+library(ROCR) 
+data(ROCR.simple) 
+head(ROCR.simple$predictions)
+
+head(ROCR.simple$labels)
+
+```
+--change the bp.res to use the mean and standard deviation. copy past function make new then call it
+```{r}
+summary(sales)
+
+100*sum(sales$Insp == "unkn")/nrow(sales)
+
+source("workflowsCode.R")
+
+source("evaluationcode.R")
+
+```
+
+# slide 88 Semi-Supervised Approches
+```{r}
+#if your model makes wrong predicitons, you will be training your data with bad data.
+#data in beginning. we have a small training set
+#self training is risky, can be used for any training model.
+#
+```
+
+
